@@ -1,8 +1,8 @@
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { Client } from "ssh2";
-import { readFileSync, existsSync } from "fs";
-import { homedir } from "os";
-import { join } from "path";
-import type { SshClient, ExecResult, PermissionLevel } from "../types";
+import type { ExecResult, PermissionLevel, SshClient } from "../types";
 
 export interface ParsedConnection {
   username: string;
@@ -52,13 +52,13 @@ export class SshConnection implements SshClient {
   private sudoPassword?: string;
 
   constructor(
-    private connectionString: string,
+    connectionString: string,
     private authOverrides?: { keyPath?: string; password?: string },
   ) {
     this.parsed = parseConnectionString(connectionString);
   }
 
-  static getAuthMethods(parsed: ParsedConnection, overrides?: { keyPath?: string }): AuthMethod[] {
+  static getAuthMethods(_parsed: ParsedConnection, overrides?: { keyPath?: string }): AuthMethod[] {
     const methods: AuthMethod[] = [];
     const home = homedir();
 
@@ -81,7 +81,11 @@ export class SshConnection implements SshClient {
     return methods;
   }
 
-  static wrapWithSudo(command: string, permissionLevel: PermissionLevel, sudoPassword?: string): string {
+  static wrapWithSudo(
+    command: string,
+    permissionLevel: PermissionLevel,
+    sudoPassword?: string,
+  ): string {
     switch (permissionLevel) {
       case "root":
       case "docker_group":
@@ -102,9 +106,7 @@ export class SshConnection implements SshClient {
       try {
         await this.tryConnect(method);
         return;
-      } catch {
-        continue;
-      }
+      } catch {}
     }
     if (this.authOverrides?.password) {
       await this.tryConnect({ type: "password", value: this.authOverrides.password });
@@ -165,8 +167,12 @@ export class SshConnection implements SshClient {
         if (err) return reject(err);
         let stdout = "";
         let stderr = "";
-        stream.on("data", (data: Buffer) => { stdout += data.toString(); });
-        stream.stderr.on("data", (data: Buffer) => { stderr += data.toString(); });
+        stream.on("data", (data: Buffer) => {
+          stdout += data.toString();
+        });
+        stream.stderr.on("data", (data: Buffer) => {
+          stderr += data.toString();
+        });
         stream.on("close", (code: number) => {
           resolve({ stdout: stdout.trimEnd(), stderr: stderr.trimEnd(), code: code ?? 0 });
         });
@@ -174,7 +180,11 @@ export class SshConnection implements SshClient {
     });
   }
 
-  async execStream(command: string, onStdout: (chunk: string) => void, onStderr?: (chunk: string) => void): Promise<ExecResult> {
+  async execStream(
+    command: string,
+    onStdout: (chunk: string) => void,
+    onStderr?: (chunk: string) => void,
+  ): Promise<ExecResult> {
     if (!this.client) throw new Error("Not connected");
     const wrappedCmd = this.wrapCmd(command);
     return new Promise((resolve, reject) => {
@@ -182,9 +192,19 @@ export class SshConnection implements SshClient {
         if (err) return reject(err);
         let stdout = "";
         let stderr = "";
-        stream.on("data", (data: Buffer) => { const chunk = data.toString(); stdout += chunk; onStdout(chunk); });
-        stream.stderr.on("data", (data: Buffer) => { const chunk = data.toString(); stderr += chunk; onStderr?.(chunk); });
-        stream.on("close", (code: number) => { resolve({ stdout, stderr, code: code ?? 0 }); });
+        stream.on("data", (data: Buffer) => {
+          const chunk = data.toString();
+          stdout += chunk;
+          onStdout(chunk);
+        });
+        stream.stderr.on("data", (data: Buffer) => {
+          const chunk = data.toString();
+          stderr += chunk;
+          onStderr?.(chunk);
+        });
+        stream.on("close", (code: number) => {
+          resolve({ stdout, stderr, code: code ?? 0 });
+        });
       });
     });
   }
@@ -194,7 +214,11 @@ export class SshConnection implements SshClient {
     return new Promise((resolve, reject) => {
       this.client!.sftp((err, sftp) => {
         if (err) return reject(err);
-        sftp.fastPut(localPath, remotePath, (err) => { sftp.end(); if (err) return reject(err); resolve(); });
+        sftp.fastPut(localPath, remotePath, (err) => {
+          sftp.end();
+          if (err) return reject(err);
+          resolve();
+        });
       });
     });
   }
@@ -204,7 +228,11 @@ export class SshConnection implements SshClient {
     return new Promise((resolve, reject) => {
       this.client!.sftp((err, sftp) => {
         if (err) return reject(err);
-        sftp.fastGet(remotePath, localPath, (err) => { sftp.end(); if (err) return reject(err); resolve(); });
+        sftp.fastGet(remotePath, localPath, (err) => {
+          sftp.end();
+          if (err) return reject(err);
+          resolve();
+        });
       });
     });
   }
@@ -216,9 +244,17 @@ export class SshConnection implements SshClient {
         if (err) return reject(err);
         let content = "";
         const stream = sftp.createReadStream(remotePath);
-        stream.on("data", (chunk: Buffer) => { content += chunk.toString(); });
-        stream.on("end", () => { sftp.end(); resolve(content); });
-        stream.on("error", (err) => { sftp.end(); reject(err); });
+        stream.on("data", (chunk: Buffer) => {
+          content += chunk.toString();
+        });
+        stream.on("end", () => {
+          sftp.end();
+          resolve(content);
+        });
+        stream.on("error", (err) => {
+          sftp.end();
+          reject(err);
+        });
       });
     });
   }
@@ -229,8 +265,14 @@ export class SshConnection implements SshClient {
       this.client!.sftp((err, sftp) => {
         if (err) return reject(err);
         const stream = sftp.createWriteStream(remotePath);
-        stream.on("close", () => { sftp.end(); resolve(); });
-        stream.on("error", (err) => { sftp.end(); reject(err); });
+        stream.on("close", () => {
+          sftp.end();
+          resolve();
+        });
+        stream.on("error", (err) => {
+          sftp.end();
+          reject(err);
+        });
         stream.end(content);
       });
     });

@@ -26,13 +26,9 @@ export function detectTerminal(): TerminalCapabilities {
     term.includes("xterm") ||
     term === "screen";
 
-  const supportsAnsi =
-    isModernTerminal ||
-    process.stdout.isTTY === true;
+  const supportsAnsi = isModernTerminal || process.stdout.isTTY === true;
 
-  const supportsUnicode =
-    isModernTerminal &&
-    !(!isWindowsTerminal && process.platform === "win32"); // old cmd.exe
+  const supportsUnicode = isModernTerminal && !(!isWindowsTerminal && process.platform === "win32"); // old cmd.exe
 
   const supportsTrueColor =
     isWindowsTerminal ||

@@ -1,4 +1,11 @@
-import type { Migrator, Step, MigrationContext, ValidationResult, StepResult, TimeEstimate } from "../types";
+import type {
+  MigrationContext,
+  Migrator,
+  Step,
+  StepResult,
+  TimeEstimate,
+  ValidationResult,
+} from "../types";
 
 const DUMP_PATH = "/tmp/liftoff-pg-dump.sql";
 
@@ -52,7 +59,9 @@ export const postgresDumpMigrator: Migrator = {
     }
 
     // Check dump file size
-    const sizeResult = await context.source.exec(`stat -c%s ${DUMP_PATH} 2>/dev/null || stat -f%z ${DUMP_PATH}`);
+    const sizeResult = await context.source.exec(
+      `stat -c%s ${DUMP_PATH} 2>/dev/null || stat -f%z ${DUMP_PATH}`,
+    );
     const sizeBytes = parseInt(sizeResult.stdout.trim(), 10);
     context.onLog(`Database dump complete: ${(sizeBytes / 1024 / 1024).toFixed(1)} MB`);
 

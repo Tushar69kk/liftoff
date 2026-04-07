@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { render, Box, Text, Static, useApp } from "ink";
-import { readFileSync } from "fs";
-import { parsePlanYaml } from "../planner/yaml";
+import { readFileSync } from "node:fs";
+import { Box, render, Text, useApp } from "ink";
+import { useEffect, useState } from "react";
 import { Executor } from "../executor/index";
 import { createDefaultRegistry } from "../migrators/registry";
+import { parsePlanYaml } from "../planner/yaml";
 import { SshConnection } from "../ssh/connection";
+import type { MigrationPlan, ProgressEvent, StepResult } from "../types";
 import { detectTerminal } from "./terminal";
-import type { MigrationPlan, StepResult, ProgressEvent } from "../types";
 
 // === Ink Dashboard Component ===
 
@@ -72,7 +72,7 @@ function Dashboard({ plan, executor, sourceConn, targetConn }: DashboardProps) {
       // Exit after showing result for a moment
       setTimeout(() => exit(), 1000);
     })();
-  }, []);
+  }, [targetConn.close, sourceConn, plan, targetConn, exit, executor.execute]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -82,19 +82,27 @@ function Dashboard({ plan, executor, sourceConn, targetConn }: DashboardProps) {
 
   const statusIcon = (state: StepStatus["state"]) => {
     switch (state) {
-      case "pending": return "○";
-      case "running": return "●";
-      case "done": return "✓";
-      case "failed": return "✗";
+      case "pending":
+        return "○";
+      case "running":
+        return "●";
+      case "done":
+        return "✓";
+      case "failed":
+        return "✗";
     }
   };
 
   const statusColor = (state: StepStatus["state"]) => {
     switch (state) {
-      case "pending": return "gray";
-      case "running": return "yellow";
-      case "done": return "green";
-      case "failed": return "red";
+      case "pending":
+        return "gray";
+      case "running":
+        return "yellow";
+      case "done":
+        return "green";
+      case "failed":
+        return "red";
     }
   };
 
@@ -102,8 +110,13 @@ function Dashboard({ plan, executor, sourceConn, targetConn }: DashboardProps) {
     <Box flexDirection="column" padding={1}>
       {/* Header */}
       <Box marginBottom={1}>
-        <Text bold color="magenta">⚡ Liftoff Migration</Text>
-        <Text color="gray"> — {plan.source.host} → {plan.target.host} — </Text>
+        <Text bold color="magenta">
+          ⚡ Liftoff Migration
+        </Text>
+        <Text color="gray">
+          {" "}
+          — {plan.source.host} → {plan.target.host} —{" "}
+        </Text>
         <Text color="cyan">{formatTime(elapsed)}</Text>
       </Box>
 
@@ -112,7 +125,8 @@ function Dashboard({ plan, executor, sourceConn, targetConn }: DashboardProps) {
         {plan.steps.map((step, i) => (
           <Box key={i}>
             <Text color={statusColor(stepStatuses[i].state)}>
-              {" "}{statusIcon(stepStatuses[i].state)} {step.name}
+              {" "}
+              {statusIcon(stepStatuses[i].state)} {step.name}
             </Text>
             {stepStatuses[i].result && (
               <Text color="gray"> ({(stepStatuses[i].result!.duration / 1000).toFixed(1)}s)</Text>
@@ -125,16 +139,21 @@ function Dashboard({ plan, executor, sourceConn, targetConn }: DashboardProps) {
       {progress && (
         <Box marginBottom={1}>
           <Text color="yellow">
-            {" "}[{progressBar(progress.percent)}] {progress.percent}% — {progress.message}
+            {" "}
+            [{progressBar(progress.percent)}] {progress.percent}% — {progress.message}
           </Text>
         </Box>
       )}
 
       {/* Log */}
       <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
-        <Text color="gray" dimColor>Log:</Text>
+        <Text color="gray" dimColor>
+          Log:
+        </Text>
         {logs.slice(-8).map((log, i) => (
-          <Text key={i} color="gray" wrap="truncate">{log}</Text>
+          <Text key={i} color="gray" wrap="truncate">
+            {log}
+          </Text>
         ))}
       </Box>
 
@@ -142,9 +161,13 @@ function Dashboard({ plan, executor, sourceConn, targetConn }: DashboardProps) {
       {result && (
         <Box marginTop={1}>
           {result.success ? (
-            <Text bold color="green">✓ Migration complete!</Text>
+            <Text bold color="green">
+              ✓ Migration complete!
+            </Text>
           ) : (
-            <Text bold color="red">✗ Migration failed: {result.error}</Text>
+            <Text bold color="red">
+              ✗ Migration failed: {result.error}
+            </Text>
           )}
         </Box>
       )}
@@ -173,16 +196,18 @@ async function runFallback(
     target: targetConn,
     onLog: (msg) => console.log(`  ${msg}`),
     onProgress: (event) => {
-      process.stdout.write(`\r  [${progressBar(event.percent)}] ${event.percent}% — ${event.message}`);
+      process.stdout.write(
+        `\r  [${progressBar(event.percent)}] ${event.percent}% — ${event.message}`,
+      );
     },
     onStepStart: (i) => {
       console.log(`\n[${i + 1}/${plan.steps.length}] ${plan.steps[i].name}...`);
     },
-    onStepComplete: (i, stepResult) => {
+    onStepComplete: (_i, stepResult) => {
       const icon = stepResult.success ? "✓" : "✗";
       console.log(`  ${icon} Done (${(stepResult.duration / 1000).toFixed(1)}s)`);
     },
-    onStepFailed: async (i, error) => {
+    onStepFailed: async (_i, error) => {
       console.error(`\n  ✗ Step failed: ${error}\n`);
       const { select } = await import("@clack/prompts");
       const action = await select({
@@ -204,7 +229,9 @@ async function runFallback(
   if (result.success) {
     console.log("\n✓ Migration complete!\n");
   } else {
-    console.error(`\n✗ Migration failed at step ${(result.failedStep ?? 0) + 1}: ${result.error}\n`);
+    console.error(
+      `\n✗ Migration failed at step ${(result.failedStep ?? 0) + 1}: ${result.error}\n`,
+    );
     process.exit(1);
   }
 }
@@ -255,12 +282,7 @@ export async function runMigration(planPath: string): Promise<void> {
 
   if (terminal.isModernTerminal && process.stdout.isTTY) {
     const { waitUntilExit } = render(
-      <Dashboard
-        plan={plan}
-        executor={executor}
-        sourceConn={sourceConn}
-        targetConn={targetConn}
-      />,
+      <Dashboard plan={plan} executor={executor} sourceConn={sourceConn} targetConn={targetConn} />,
     );
     await waitUntilExit();
   } else {

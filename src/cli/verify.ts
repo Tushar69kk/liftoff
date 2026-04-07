@@ -1,7 +1,6 @@
-import { readFileSync } from "fs";
-import { parsePlanYaml } from "../planner/yaml";
-import { Executor } from "../executor/index";
+import { readFileSync } from "node:fs";
 import { createDefaultRegistry } from "../migrators/registry";
+import { parsePlanYaml } from "../planner/yaml";
 import { SshConnection } from "../ssh/connection";
 import type { Step } from "../types";
 

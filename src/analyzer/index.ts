@@ -1,11 +1,8 @@
-import type { SshClient, AnalysisResult, VolumeInfo } from "../types";
+import type { AnalysisResult, SshClient, VolumeInfo } from "../types";
 import { parseComposeFile } from "./compose-parser";
 import { detectDatabases } from "./database-detector";
 
-export async function analyzeStack(
-  ssh: SshClient,
-  composePath: string,
-): Promise<AnalysisResult> {
+export async function analyzeStack(ssh: SshClient, composePath: string): Promise<AnalysisResult> {
   // Read compose file from remote server
   const yamlContent = await ssh.readFile(composePath);
   const parsed = parseComposeFile(yamlContent);

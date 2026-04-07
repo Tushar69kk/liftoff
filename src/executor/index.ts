@@ -1,11 +1,11 @@
+import type { MigratorRegistry } from "../migrators/registry";
 import type {
-  MigrationPlan,
-  SshClient,
   MigrationContext,
+  MigrationPlan,
   ProgressEvent,
+  SshClient,
   StepResult,
 } from "../types";
-import { MigratorRegistry } from "../migrators/registry";
 
 export type FailureAction = "retry" | "skip" | "abort";
 
@@ -37,10 +37,7 @@ export interface ValidationReport {
 export class Executor {
   constructor(private registry: MigratorRegistry) {}
 
-  async validate(
-    plan: MigrationPlan,
-    callbacks: ExecutionCallbacks,
-  ): Promise<ValidationReport> {
+  async validate(plan: MigrationPlan, callbacks: ExecutionCallbacks): Promise<ValidationReport> {
     const context = this.buildContext(plan, callbacks);
     const stepErrors: (string | null)[] = [];
     let valid = true;
@@ -59,10 +56,7 @@ export class Executor {
     return { valid, stepErrors };
   }
 
-  async execute(
-    plan: MigrationPlan,
-    callbacks: ExecutionCallbacks,
-  ): Promise<ExecutionResult> {
+  async execute(plan: MigrationPlan, callbacks: ExecutionCallbacks): Promise<ExecutionResult> {
     const context = this.buildContext(plan, callbacks);
     const start = Date.now();
     const stepResults: StepResult[] = [];
@@ -83,7 +77,7 @@ export class Executor {
         },
       };
 
-      let result = await migrator.execute(step, stepContext);
+      const result = await migrator.execute(step, stepContext);
       stepResults.push(result);
       callbacks.onStepComplete?.(i, result);
 
@@ -125,10 +119,7 @@ export class Executor {
     };
   }
 
-  private buildContext(
-    plan: MigrationPlan,
-    callbacks: ExecutionCallbacks,
-  ): MigrationContext {
+  private buildContext(plan: MigrationPlan, callbacks: ExecutionCallbacks): MigrationContext {
     return {
       source: callbacks.source,
       target: callbacks.target,

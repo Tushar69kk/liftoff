@@ -1,11 +1,11 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import * as p from "@clack/prompts";
-import { writeFileSync } from "fs";
-import { join } from "path";
-import { SshConnection } from "../ssh/connection";
-import { validateServer } from "../ssh/validation";
 import { analyzeStack } from "../analyzer/index";
 import { generatePlan, stringifyPlan } from "../planner/index";
-import type { ServerConfig, PermissionLevel } from "../types";
+import { SshConnection } from "../ssh/connection";
+import { validateServer } from "../ssh/validation";
+import type { PermissionLevel, ServerConfig } from "../types";
 
 export async function runPlanWizard(): Promise<void> {
   p.intro("Liftoff — Migration Planner");

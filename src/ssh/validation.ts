@@ -1,4 +1,4 @@
-import type { SshClient, ServerCheck, PermissionLevel } from "../types";
+import type { PermissionLevel, ServerCheck, SshClient } from "../types";
 
 export interface ValidationReport {
   checks: ServerCheck[];
@@ -50,9 +50,7 @@ export async function validateServer(ssh: SshClient): Promise<ValidationReport> 
       message: canDocker
         ? `Docker accessible as ${username}`
         : `Docker requires sudo password (will be prompted)`,
-      fix: canDocker
-        ? undefined
-        : "Sudo password will be requested during migration",
+      fix: canDocker ? undefined : "Sudo password will be requested during migration",
     });
   } else {
     checks.push({
@@ -140,5 +138,5 @@ function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+  return `${(bytes / 1024 ** i).toFixed(1)} ${units[i]}`;
 }
