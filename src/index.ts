@@ -1,4 +1,8 @@
-#!/usr/bin/env bun
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const pkg = JSON.parse(readFileSync(join(import.meta.dirname, "../package.json"), "utf-8"));
+const version: string = pkg.version;
 
 const command = process.argv[2];
 const args = process.argv.slice(3);
@@ -23,7 +27,7 @@ switch (command) {
   }
   case "--version":
   case "-v":
-    console.log("liftoff 0.1.0");
+    console.log(`liftoff ${version}`);
     break;
   default:
     console.log(`

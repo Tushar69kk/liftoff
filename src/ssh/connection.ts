@@ -13,6 +13,7 @@ export interface ParsedConnection {
 interface AuthMethod {
   type: "agent" | "privateKey" | "password";
   value?: string;
+  passphrase?: string;
 }
 
 export function parseConnectionString(input: string): ParsedConnection {
@@ -53,7 +54,7 @@ export class SshConnection implements SshClient {
 
   constructor(
     connectionString: string,
-    private authOverrides?: { keyPath?: string; password?: string },
+    private authOverrides?: { keyPath?: string; password?: string; passphrase?: string },
   ) {
     this.parsed = parseConnectionString(connectionString);
   }
@@ -100,21 +101,48 @@ export class SshConnection implements SshClient {
     }
   }
 
+  private onPassphraseNeeded?: () => Promise<string>;
+
+  /** Register a callback to prompt for a passphrase when an encrypted key is encountered */
+  setPassphraseHandler(handler: () => Promise<string>): void {
+    this.onPassphraseNeeded = handler;
+  }
+
   async connect(): Promise<void> {
     const methods = SshConnection.getAuthMethods(this.parsed, this.authOverrides);
     for (const method of methods) {
       try {
         await this.tryConnect(method);
         return;
-      } catch {}
+      } catch (err) {
+        // If the key is encrypted and we have a passphrase handler, prompt and retry
+        const msg = err instanceof Error ? err.message : "";
+        const isEncrypted = msg.includes("encrypted") || msg.includes("passphrase");
+        if (isEncrypted && method.type === "privateKey" && this.onPassphraseNeeded) {
+          try {
+            const passphrase = await this.onPassphraseNeeded();
+            await this.tryConnect({ ...method, passphrase });
+            return;
+          } catch {
+            // Passphrase was wrong or another error — continue to next method
+          }
+        }
+      }
     }
     if (this.authOverrides?.password) {
       await this.tryConnect({ type: "password", value: this.authOverrides.password });
       return;
     }
-    throw new Error(
-      `Could not authenticate to ${this.parsed.host} as ${this.parsed.username}. Tried: ${methods.map((m) => m.type).join(", ")}`,
-    );
+    if (this.authOverrides?.passphrase) {
+      // Retry all key methods with the provided passphrase
+      for (const method of methods.filter((m) => m.type === "privateKey")) {
+        try {
+          await this.tryConnect({ ...method, passphrase: this.authOverrides.passphrase });
+          return;
+        } catch {}
+      }
+    }
+    throw new Error(`Could not authenticate to ${this.parsed.host} as ${this.parsed.username}`);
   }
 
   private tryConnect(method: AuthMethod): Promise<void> {
@@ -132,6 +160,7 @@ export class SshConnection implements SshClient {
           break;
         case "privateKey":
           config.privateKey = readFileSync(method.value!);
+          if (method.passphrase) config.passphrase = method.passphrase;
           break;
         case "password":
           config.password = method.value;

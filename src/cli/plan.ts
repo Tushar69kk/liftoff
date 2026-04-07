@@ -95,6 +95,11 @@ async function promptServer(
 
   try {
     conn = new SshConnection(connectionString);
+    conn.setPassphraseHandler(async () => {
+      const passphrase = await p.password({ message: "SSH key passphrase" });
+      if (p.isCancel(passphrase)) throw new Error("Cancelled");
+      return passphrase;
+    });
     await conn.connect();
 
     const validation = await validateServer(conn);

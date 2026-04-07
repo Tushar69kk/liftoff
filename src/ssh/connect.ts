@@ -32,9 +32,17 @@ export async function connectServerInteractive(host: string): Promise<SshClient>
     return new LocalClient();
   }
 
-  // Try auto-connect first
+  // Try auto-connect first, with passphrase prompt for encrypted keys
   try {
-    return await connectServer(host);
+    const conn = new SshConnection(host);
+    conn.setPassphraseHandler(async () => {
+      const p = await import("@clack/prompts");
+      const passphrase = await p.password({ message: "SSH key passphrase" });
+      if (p.isCancel(passphrase)) throw new Error("Cancelled");
+      return passphrase;
+    });
+    await conn.connect();
+    return conn;
   } catch {
     // Auto-connect failed — prompt for credentials
     const p = await import("@clack/prompts");
