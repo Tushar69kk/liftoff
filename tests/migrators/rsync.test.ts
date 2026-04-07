@@ -36,7 +36,22 @@ describe("rsyncMigrator", () => {
     expect(rsyncMigrator.type).toBe("rsync");
   });
 
-  test("validate checks rsync is installed on both servers", async () => {
+  test("validate fails when source has no rsync", async () => {
+    const source = new MockSshClient((cmd) => {
+      if (cmd.includes("which rsync")) return { stdout: "", stderr: "", code: 1 };
+      return { stdout: "", stderr: "", code: 0 };
+    });
+    const target = new MockSshClient(() => ({ stdout: "/usr/bin/rsync", stderr: "", code: 0 }));
+
+    const result = await rsyncMigrator.validate(
+      { name: "sync", type: "rsync", live: true },
+      makeContext(source, target),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain("source");
+  });
+
+  test("validate warns when target has no rsync (SFTP fallback)", async () => {
     const source = new MockSshClient((cmd) => {
       if (cmd.includes("which rsync")) return { stdout: "/usr/bin/rsync", stderr: "", code: 0 };
       return { stdout: "", stderr: "", code: 0 };
@@ -50,37 +65,63 @@ describe("rsyncMigrator", () => {
       { name: "sync", type: "rsync", live: true },
       makeContext(source, target),
     );
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toContain("target");
+    expect(result.valid).toBe(true);
+    expect(result.warnings.length).toBeGreaterThan(0);
   });
 
-  test("execute archives and transfers each volume via tar+SFTP", async () => {
+  test("execute transfers volumes (falls back to SFTP when rsync SSH fails)", async () => {
     const source = new MockSshClient((cmd) => {
+      // rsync dry-run fails (no SSH access to target) — triggers SFTP fallback
+      if (cmd.includes("rsync --dry-run")) return { stdout: "", stderr: "error", code: 1 };
       if (cmd.includes("docker volume inspect")) {
-        return {
-          stdout: "/var/lib/docker/volumes/app_data/_data",
-          stderr: "",
-          code: 0,
-        };
+        return { stdout: "/var/lib/docker/volumes/app_data/_data", stderr: "", code: 0 };
       }
-      if (cmd.includes("stat")) {
-        return { stdout: "1024", stderr: "", code: 0 };
+      if (cmd.includes("stat")) return { stdout: "1024", stderr: "", code: 0 };
+      return { stdout: "", stderr: "", code: 0 };
+    });
+    const target = new MockSshClient((cmd) => {
+      if (cmd.includes("docker volume inspect")) {
+        return { stdout: "/var/lib/docker/volumes/app_data/_data", stderr: "", code: 0 };
       }
       return { stdout: "", stderr: "", code: 0 };
     });
-    const target = new MockSshClient();
 
     const result = await rsyncMigrator.execute(
       { name: "sync", type: "rsync", live: true },
       makeContext(source, target),
     );
     expect(result.success).toBe(true);
-    // Should use tar to archive
+    // Should use tar (SFTP fallback)
     expect(source.commands.some((c) => c.includes("tar czf"))).toBe(true);
-    // Should download from source and upload to target
     expect(source.downloadedFiles.length).toBeGreaterThan(0);
     expect(target.uploadedFiles.length).toBeGreaterThan(0);
-    // Should extract on target
     expect(target.commands.some((c) => c.includes("tar xzf"))).toBe(true);
+  });
+
+  test("execute uses rsync directly when SSH works", async () => {
+    const source = new MockSshClient((cmd) => {
+      // rsync dry-run succeeds — use direct rsync
+      if (cmd.includes("rsync --dry-run")) return { stdout: "", stderr: "", code: 0 };
+      if (cmd.includes("rsync -azP")) return { stdout: "100%", stderr: "", code: 0 };
+      if (cmd.includes("docker volume inspect")) {
+        return { stdout: "/var/lib/docker/volumes/app_data/_data", stderr: "", code: 0 };
+      }
+      return { stdout: "", stderr: "", code: 0 };
+    });
+    const target = new MockSshClient((cmd) => {
+      if (cmd.includes("docker volume inspect")) {
+        return { stdout: "/var/lib/docker/volumes/app_data/_data", stderr: "", code: 0 };
+      }
+      return { stdout: "", stderr: "", code: 0 };
+    });
+
+    const result = await rsyncMigrator.execute(
+      { name: "sync", type: "rsync", live: true },
+      makeContext(source, target),
+    );
+    expect(result.success).toBe(true);
+    // Should use rsync directly, NOT tar
+    expect(source.commands.some((c) => c.includes("rsync -azP"))).toBe(true);
+    expect(source.commands.some((c) => c.includes("tar czf"))).toBe(false);
   });
 });
