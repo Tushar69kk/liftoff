@@ -1,0 +1,67 @@
+import { describe, expect, test } from "bun:test";
+import { rsyncMigrator } from "../../src/migrators/rsync";
+import { MockSshClient } from "../helpers/mock-ssh";
+import type { MigrationContext, MigrationPlan } from "../../src/types";
+
+function makeContext(source: MockSshClient, target: MockSshClient): MigrationContext {
+  const plan: MigrationPlan = {
+    version: 1,
+    source: { host: "root@old.de", compose_file: "/opt/app/docker-compose.yml" },
+    target: { host: "root@new.de", compose_dir: "/opt/app" },
+    services: [
+      { name: "app", image: "nginx", volumes: ["app_data:/data"] },
+    ],
+    steps: [],
+  };
+  return {
+    source,
+    target,
+    plan,
+    onProgress: () => {},
+    onLog: () => {},
+  };
+}
+
+describe("rsyncMigrator", () => {
+  test("type is rsync", () => {
+    expect(rsyncMigrator.type).toBe("rsync");
+  });
+
+  test("validate checks rsync is installed on both servers", async () => {
+    const source = new MockSshClient((cmd) => {
+      if (cmd.includes("which rsync")) return { stdout: "/usr/bin/rsync", stderr: "", code: 0 };
+      return { stdout: "", stderr: "", code: 0 };
+    });
+    const target = new MockSshClient((cmd) => {
+      if (cmd.includes("which rsync")) return { stdout: "", stderr: "", code: 1 };
+      return { stdout: "", stderr: "", code: 0 };
+    });
+
+    const result = await rsyncMigrator.validate(
+      { name: "sync", type: "rsync", live: true },
+      makeContext(source, target),
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain("target");
+  });
+
+  test("execute runs rsync for each volume", async () => {
+    const source = new MockSshClient((cmd) => {
+      if (cmd.includes("docker volume inspect")) {
+        return { stdout: "/var/lib/docker/volumes/app_data/_data", stderr: "", code: 0 };
+      }
+      if (cmd.includes("rsync")) {
+        return { stdout: "", stderr: "", code: 0 };
+      }
+      return { stdout: "", stderr: "", code: 0 };
+    });
+    const target = new MockSshClient();
+
+    const result = await rsyncMigrator.execute(
+      { name: "sync", type: "rsync", live: true },
+      makeContext(source, target),
+    );
+    expect(result.success).toBe(true);
+    expect(source.commands.some((c) => c.includes("rsync"))).toBe(true);
+  });
+});
