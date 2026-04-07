@@ -1,0 +1,269 @@
+import React, { useState, useEffect } from "react";
+import { render, Box, Text, Static, useApp } from "ink";
+import { readFileSync } from "fs";
+import { parsePlanYaml } from "../planner/yaml";
+import { Executor } from "../executor/index";
+import { createDefaultRegistry } from "../migrators/registry";
+import { SshConnection } from "../ssh/connection";
+import { detectTerminal } from "./terminal";
+import type { MigrationPlan, StepResult, ProgressEvent } from "../types";
+
+// === Ink Dashboard Component ===
+
+interface DashboardProps {
+  plan: MigrationPlan;
+  executor: Executor;
+  sourceConn: SshConnection;
+  targetConn: SshConnection;
+}
+
+interface StepStatus {
+  state: "pending" | "running" | "done" | "failed";
+  result?: StepResult;
+}
+
+function Dashboard({ plan, executor, sourceConn, targetConn }: DashboardProps) {
+  const { exit } = useApp();
+  const [stepStatuses, setStepStatuses] = useState<StepStatus[]>(
+    plan.steps.map(() => ({ state: "pending" })),
+  );
+  const [logs, setLogs] = useState<string[]>([]);
+  const [progress, setProgress] = useState<ProgressEvent | null>(null);
+  const [result, setResult] = useState<{ success: boolean; error?: string } | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const execResult = await executor.execute(plan, {
+        source: sourceConn,
+        target: targetConn,
+        onLog: (msg) => setLogs((prev) => [...prev.slice(-50), msg]),
+        onProgress: (event) => setProgress(event),
+        onStepStart: (i) => {
+          setStepStatuses((prev) => {
+            const next = [...prev];
+            next[i] = { state: "running" };
+            return next;
+          });
+        },
+        onStepComplete: (i, stepResult) => {
+          setStepStatuses((prev) => {
+            const next = [...prev];
+            next[i] = {
+              state: stepResult.success ? "done" : "failed",
+              result: stepResult,
+            };
+            return next;
+          });
+        },
+      });
+
+      setResult({ success: execResult.success, error: execResult.error });
+
+      // Clean up SSH connections
+      await sourceConn.close();
+      await targetConn.close();
+
+      // Exit after showing result for a moment
+      setTimeout(() => exit(), 1000);
+    })();
+  }, []);
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const statusIcon = (state: StepStatus["state"]) => {
+    switch (state) {
+      case "pending": return "○";
+      case "running": return "●";
+      case "done": return "✓";
+      case "failed": return "✗";
+    }
+  };
+
+  const statusColor = (state: StepStatus["state"]) => {
+    switch (state) {
+      case "pending": return "gray";
+      case "running": return "yellow";
+      case "done": return "green";
+      case "failed": return "red";
+    }
+  };
+
+  return (
+    <Box flexDirection="column" padding={1}>
+      {/* Header */}
+      <Box marginBottom={1}>
+        <Text bold color="magenta">⚡ Liftoff Migration</Text>
+        <Text color="gray"> — {plan.source.host} → {plan.target.host} — </Text>
+        <Text color="cyan">{formatTime(elapsed)}</Text>
+      </Box>
+
+      {/* Steps */}
+      <Box flexDirection="column" marginBottom={1}>
+        {plan.steps.map((step, i) => (
+          <Box key={i}>
+            <Text color={statusColor(stepStatuses[i].state)}>
+              {" "}{statusIcon(stepStatuses[i].state)} {step.name}
+            </Text>
+            {stepStatuses[i].result && (
+              <Text color="gray"> ({(stepStatuses[i].result!.duration / 1000).toFixed(1)}s)</Text>
+            )}
+          </Box>
+        ))}
+      </Box>
+
+      {/* Progress bar */}
+      {progress && (
+        <Box marginBottom={1}>
+          <Text color="yellow">
+            {" "}[{progressBar(progress.percent)}] {progress.percent}% — {progress.message}
+          </Text>
+        </Box>
+      )}
+
+      {/* Log */}
+      <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
+        <Text color="gray" dimColor>Log:</Text>
+        {logs.slice(-8).map((log, i) => (
+          <Text key={i} color="gray" wrap="truncate">{log}</Text>
+        ))}
+      </Box>
+
+      {/* Result */}
+      {result && (
+        <Box marginTop={1}>
+          {result.success ? (
+            <Text bold color="green">✓ Migration complete!</Text>
+          ) : (
+            <Text bold color="red">✗ Migration failed: {result.error}</Text>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function progressBar(percent: number): string {
+  const width = 30;
+  const filled = Math.round((percent / 100) * width);
+  return "█".repeat(filled) + "░".repeat(width - filled);
+}
+
+// === Fallback renderer for legacy terminals ===
+
+async function runFallback(
+  plan: MigrationPlan,
+  executor: Executor,
+  sourceConn: SshConnection,
+  targetConn: SshConnection,
+): Promise<void> {
+  console.log(`\nLiftoff Migration: ${plan.source.host} → ${plan.target.host}\n`);
+
+  const result = await executor.execute(plan, {
+    source: sourceConn,
+    target: targetConn,
+    onLog: (msg) => console.log(`  ${msg}`),
+    onProgress: (event) => {
+      process.stdout.write(`\r  [${progressBar(event.percent)}] ${event.percent}% — ${event.message}`);
+    },
+    onStepStart: (i) => {
+      console.log(`\n[${i + 1}/${plan.steps.length}] ${plan.steps[i].name}...`);
+    },
+    onStepComplete: (i, stepResult) => {
+      const icon = stepResult.success ? "✓" : "✗";
+      console.log(`  ${icon} Done (${(stepResult.duration / 1000).toFixed(1)}s)`);
+    },
+    onStepFailed: async (i, error) => {
+      console.error(`\n  ✗ Step failed: ${error}\n`);
+      const { select } = await import("@clack/prompts");
+      const action = await select({
+        message: "What would you like to do?",
+        options: [
+          { value: "retry", label: "Retry this step" },
+          { value: "skip", label: "Skip and continue" },
+          { value: "abort", label: "Abort migration" },
+        ],
+      });
+      if (typeof action === "symbol") return "abort"; // user cancelled
+      return action as "retry" | "skip" | "abort";
+    },
+  });
+
+  await sourceConn.close();
+  await targetConn.close();
+
+  if (result.success) {
+    console.log("\n✓ Migration complete!\n");
+  } else {
+    console.error(`\n✗ Migration failed at step ${(result.failedStep ?? 0) + 1}: ${result.error}\n`);
+    process.exit(1);
+  }
+}
+
+// === Entry point ===
+
+export async function runMigration(planPath: string): Promise<void> {
+  const yamlContent = readFileSync(planPath, "utf-8");
+  const plan = parsePlanYaml(yamlContent);
+
+  console.log("Connecting to servers...");
+
+  const sourceConn = new SshConnection(plan.source.host);
+  const targetConn = new SshConnection(plan.target.host);
+
+  try {
+    await sourceConn.connect();
+    await targetConn.connect();
+  } catch (err) {
+    console.error(`Connection failed: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+
+  const registry = createDefaultRegistry();
+  const executor = new Executor(registry);
+
+  // Pre-flight validation
+  console.log("Validating plan...");
+  const validation = await executor.validate(plan, {
+    source: sourceConn,
+    target: targetConn,
+    onLog: () => {},
+    onProgress: () => {},
+  });
+
+  if (!validation.valid) {
+    console.error("Pre-flight validation failed:");
+    validation.stepErrors.forEach((err, i) => {
+      if (err) console.error(`  Step ${i + 1} (${plan.steps[i].name}): ${err}`);
+    });
+    await sourceConn.close();
+    await targetConn.close();
+    process.exit(1);
+  }
+
+  // Choose renderer based on terminal capabilities
+  const terminal = detectTerminal();
+
+  if (terminal.isModernTerminal && process.stdout.isTTY) {
+    const { waitUntilExit } = render(
+      <Dashboard
+        plan={plan}
+        executor={executor}
+        sourceConn={sourceConn}
+        targetConn={targetConn}
+      />,
+    );
+    await waitUntilExit();
+  } else {
+    await runFallback(plan, executor, sourceConn, targetConn);
+  }
+}
