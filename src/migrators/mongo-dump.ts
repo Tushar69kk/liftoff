@@ -38,9 +38,10 @@ export const mongoDumpMigrator: Migrator = {
 
     context.onLog(`Dumping MongoDB from ${service}...`);
 
-    // Run mongodump inside the container — compressed archive
+    // Run mongodump inside the container — pipe to stdout so docker compose exec -T
+    // passes the archive through to the host filesystem via shell redirect
     const dumpResult = await context.source.exec(
-      `docker compose -f ${composePath} exec -T ${service} mongodump --archive=${DUMP_PATH} --gzip`,
+      `docker compose -f ${composePath} exec -T ${service} sh -c 'mongodump --archive --gzip' > ${DUMP_PATH}`,
     );
 
     if (dumpResult.code !== 0) {

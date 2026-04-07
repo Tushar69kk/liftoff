@@ -7,7 +7,21 @@ export function generatePlan(
 ): MigrationPlan {
   const steps: Step[] = [];
 
-  // 1. Pre-sync volumes (live, while stack is still running)
+  // 1. Copy compose files to target
+  steps.push({
+    name: "Copy compose files",
+    type: "compose_copy",
+  });
+
+  // 2. Create volumes on target (creates containers+volumes without starting services)
+  if (analysis.volumes.length > 0) {
+    steps.push({
+      name: "Create volumes on target",
+      type: "compose_create",
+    });
+  }
+
+  // 3. Pre-sync volumes (live, while stack is still running)
   if (analysis.volumes.length > 0) {
     steps.push({
       name: "Pre-sync volumes",
@@ -16,13 +30,7 @@ export function generatePlan(
     });
   }
 
-  // 2. Copy compose files to target
-  steps.push({
-    name: "Copy compose files",
-    type: "compose_copy",
-  });
-
-  // 3. Dump databases (while stack is still running)
+  // 4. Dump databases (while stack is still running)
   for (const db of analysis.databases) {
     switch (db.type) {
       case "postgres":
@@ -57,13 +65,13 @@ export function generatePlan(
     }
   }
 
-  // 4. Stop source stack
+  // 5. Stop source stack
   steps.push({
     name: "Stop source stack",
     type: "compose_down",
   });
 
-  // 5. Final delta sync (after stop)
+  // 6. Final delta sync (after stop)
   if (analysis.volumes.length > 0) {
     steps.push({
       name: "Final delta sync",
@@ -72,7 +80,7 @@ export function generatePlan(
     });
   }
 
-  // 6. Start database containers on target + restore
+  // 7. Start database containers on target + restore
   for (const db of analysis.databases) {
     steps.push({
       name: `Start target database (${db.serviceName})`,
@@ -112,13 +120,13 @@ export function generatePlan(
     }
   }
 
-  // 7. Start full target stack
+  // 8. Start full target stack
   steps.push({
     name: "Start target stack",
     type: "compose_up",
   });
 
-  // 8. Health checks — container check for each service
+  // 9. Health checks — container check for each service
   for (const service of analysis.services) {
     steps.push({
       name: `Container check (${service.name})`,
@@ -133,6 +141,7 @@ export function generatePlan(
     source,
     target,
     services: analysis.services,
+    volumes: analysis.volumes,
     steps,
   };
 }

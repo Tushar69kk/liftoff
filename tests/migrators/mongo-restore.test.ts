@@ -20,6 +20,7 @@ function makeContext(source: MockSshClient, target: MockSshClient): MigrationCon
         volumes: [],
       },
     ],
+    volumes: [],
     steps: [],
   };
   return { source, target, plan, onProgress: () => {}, onLog: () => {} };

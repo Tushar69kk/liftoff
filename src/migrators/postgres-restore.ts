@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   MigrationContext,
   Migrator,
@@ -6,8 +8,8 @@ import type {
   TimeEstimate,
   ValidationResult,
 } from "../types";
-import { DUMP_PATH } from "./postgres-dump";
 
+const SOURCE_DUMP_PATH = "/tmp/liftoff-pg-dump.sql";
 const REMOTE_DUMP_PATH = "/tmp/liftoff-pg-dump.sql";
 
 export const postgresRestoreMigrator: Migrator = {
@@ -27,27 +29,20 @@ export const postgresRestoreMigrator: Migrator = {
     const start = Date.now();
     const service = step.service!;
     const targetDir = context.plan.target.compose_dir!;
-    const sourceHost = context.plan.source.host;
 
-    context.onLog(`Copying database dump to target server...`);
+    context.onLog("Copying database dump to target server...");
 
-    // Copy dump file from source to target via rsync/scp
-    const copyResult = await context.target.exec(
-      `rsync -az ${sourceHost}:${DUMP_PATH} ${REMOTE_DUMP_PATH}`,
-    );
+    // Relay dump file through the liftoff process using SFTP
+    const localTmp = join(tmpdir(), "liftoff-pg-dump.sql");
+    await context.source.download(SOURCE_DUMP_PATH, localTmp);
+    await context.target.upload(localTmp, REMOTE_DUMP_PATH);
 
-    if (copyResult.code !== 0) {
-      // Fallback: try scp
-      const scpResult = await context.target.exec(
-        `scp ${sourceHost}:${DUMP_PATH} ${REMOTE_DUMP_PATH}`,
-      );
-      if (scpResult.code !== 0) {
-        return {
-          success: false,
-          error: `Failed to copy dump file: ${scpResult.stderr}`,
-          duration: Date.now() - start,
-        };
-      }
+    // Clean up local temp file
+    try {
+      const { unlinkSync } = await import("node:fs");
+      unlinkSync(localTmp);
+    } catch {
+      // ignore cleanup errors
     }
 
     context.onLog(`Restoring PostgreSQL database to ${service}...`);
@@ -76,7 +71,7 @@ export const postgresRestoreMigrator: Migrator = {
     }
 
     // Clean up dump files
-    await context.source.exec(`rm -f ${DUMP_PATH}`);
+    await context.source.exec(`rm -f ${SOURCE_DUMP_PATH}`);
     await context.target.exec(`rm -f ${REMOTE_DUMP_PATH}`);
 
     context.onLog("Database restored successfully");

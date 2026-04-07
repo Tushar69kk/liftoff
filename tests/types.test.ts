@@ -19,6 +19,7 @@ describe("types", () => {
           volumes: ["app_db:/var/lib/postgresql/data"],
         },
       ],
+      volumes: [],
       steps: [
         {
           name: "Dump DB",
@@ -49,10 +50,11 @@ describe("types", () => {
       "compose_down",
       "compose_up",
       "compose_copy",
+      "compose_create",
       "http_check",
       "container_check",
     ];
-    expect(stepTypes).toHaveLength(14);
+    expect(stepTypes).toHaveLength(15);
   });
 
   test("ExecResult captures command output", () => {

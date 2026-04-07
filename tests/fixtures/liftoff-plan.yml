@@ -20,12 +20,24 @@ services:
     volumes:
       - nextcloud_db:/var/lib/postgresql/data
 
+volumes:
+  - name: nextcloud_data
+    driver: local
+    mountpoint: /var/lib/docker/volumes/nextcloud_data/_data
+    sizeBytes: 5000000000
+  - name: nextcloud_db
+    driver: local
+    mountpoint: /var/lib/docker/volumes/nextcloud_db/_data
+    sizeBytes: 1000000000
+
 steps:
+  - name: Copy compose files
+    type: compose_copy
+  - name: Create volumes on target
+    type: compose_create
   - name: Pre-sync volumes
     type: rsync
     live: true
-  - name: Copy compose files
-    type: compose_copy
   - name: Dump PostgreSQL
     type: postgres_dump
     service: nextcloud-db

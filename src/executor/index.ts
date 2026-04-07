@@ -93,6 +93,7 @@ export class Executor {
           stepResults.pop(); // remove the failed result
           continue;
         } else if (action === "skip") {
+          stepResults.pop(); // remove the failed result
           callbacks.onLog(`Skipped step: ${step.name}`);
           completedSteps++;
           continue;

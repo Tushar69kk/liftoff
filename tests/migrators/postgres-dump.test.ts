@@ -20,6 +20,7 @@ function makeContext(source: MockSshClient): MigrationContext {
         volumes: [],
       },
     ],
+    volumes: [],
     steps: [],
   };
   return {

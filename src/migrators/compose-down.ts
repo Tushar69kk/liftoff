@@ -23,7 +23,11 @@ export const composeDownMigrator: Migrator = {
     const composePath = context.plan.source.compose_file!;
 
     context.onLog("Stopping source stack...");
-    const result = await context.source.exec(`docker compose -f ${composePath} down`);
+
+    const projectFlag = context.plan.source.project_name
+      ? ` -p ${context.plan.source.project_name}`
+      : "";
+    const result = await context.source.exec(`docker compose -f ${composePath}${projectFlag} down`);
 
     if (result.code !== 0) {
       return {

@@ -12,6 +12,7 @@ function makeContext(): MigrationContext {
     },
     target: { host: "root@new.de", compose_dir: "/opt/app" },
     services: [],
+    volumes: [],
     steps: [],
   };
   return {

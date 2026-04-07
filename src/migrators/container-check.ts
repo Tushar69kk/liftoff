@@ -31,7 +31,14 @@ export const containerCheckMigrator: Migrator = {
       `cd ${targetDir} && docker compose${projectFlag} ps ${service} --format '{{.State}}'`,
     );
 
-    const state = result.stdout.trim().toLowerCase();
+    // Filter out Docker Compose warning/log lines before checking state
+    const state = result.stdout
+      .trim()
+      .split("\n")
+      .filter((l) => !l.startsWith("time=") && !l.includes("level=warning"))
+      .join("\n")
+      .trim()
+      .toLowerCase();
 
     if (state.includes(expected)) {
       context.onLog(`Container ${service}: ${state}`);

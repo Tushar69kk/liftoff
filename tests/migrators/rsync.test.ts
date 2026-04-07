@@ -12,6 +12,14 @@ function makeContext(source: MockSshClient, target: MockSshClient): MigrationCon
     },
     target: { host: "root@new.de", compose_dir: "/opt/app" },
     services: [{ name: "app", image: "nginx", volumes: ["app_data:/data"] }],
+    volumes: [
+      {
+        name: "app_data",
+        driver: "local",
+        mountpoint: "/var/lib/docker/volumes/app_data/_data",
+        sizeBytes: 1000000,
+      },
+    ],
     steps: [],
   };
   return {

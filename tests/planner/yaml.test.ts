@@ -11,23 +11,23 @@ describe("parsePlanYaml", () => {
     expect(plan.source.host).toBe("root@old-server.de");
     expect(plan.target.host).toBe("root@new-server.de");
     expect(plan.services).toHaveLength(2);
-    expect(plan.steps).toHaveLength(10);
+    expect(plan.steps).toHaveLength(11);
   });
 
   test("preserves step types", () => {
     const plan = parsePlanYaml(fixtureYaml);
-    expect(plan.steps[0].type).toBe("rsync");
-    expect(plan.steps[2].type).toBe("postgres_dump");
-    expect(plan.steps[9].type).toBe("http_check");
+    expect(plan.steps[0].type).toBe("compose_copy");
+    expect(plan.steps[3].type).toBe("postgres_dump");
+    expect(plan.steps[10].type).toBe("http_check");
   });
 
   test("preserves optional step fields", () => {
     const plan = parsePlanYaml(fixtureYaml);
-    expect(plan.steps[0].live).toBe(true);
-    expect(plan.steps[2].service).toBe("nextcloud-db");
-    expect(plan.steps[2].method).toBe("dump_restore");
-    expect(plan.steps[9].url).toBe("https://cloud.example.org");
-    expect(plan.steps[9].expect).toBe(200);
+    expect(plan.steps[2].live).toBe(true);
+    expect(plan.steps[3].service).toBe("nextcloud-db");
+    expect(plan.steps[3].method).toBe("dump_restore");
+    expect(plan.steps[10].url).toBe("https://cloud.example.org");
+    expect(plan.steps[10].expect).toBe(200);
   });
 
   test("throws on invalid YAML", () => {

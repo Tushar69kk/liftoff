@@ -30,6 +30,7 @@ export interface Step {
     | "compose_down"
     | "compose_up"
     | "compose_copy"
+    | "compose_create"
     | "http_check"
     | "container_check";
   // Optional fields used by specific step types
@@ -45,6 +46,7 @@ export interface MigrationPlan {
   source: ServerConfig;
   target: ServerConfig;
   services: Service[];
+  volumes: VolumeInfo[];
   steps: Step[];
 }
 

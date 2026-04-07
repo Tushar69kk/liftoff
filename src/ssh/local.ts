@@ -12,7 +12,7 @@ export class LocalClient implements SshClient {
       const stdout = execSync(command, {
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
-        timeout: 60000,
+        timeout: 1800000, // 30 minutes — long-running operations like rsync/pg_dumpall need time
       }).trimEnd();
       return { stdout, stderr: "", code: 0 };
     } catch (err: any) {

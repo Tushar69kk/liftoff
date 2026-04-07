@@ -29,23 +29,25 @@ export const httpCheckMigrator: Migrator = {
     const retryDelay = 3000;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const response = await fetch(url, {
-          redirect: "follow",
-          signal: AbortSignal.timeout(10000),
-        });
+      // Run curl from the target server so it can reach localhost/container URLs
+      const curlResult = await context.target.exec(
+        `curl -s -o /dev/null -w '%{http_code}' --max-time 10 -L '${url}'`,
+      );
 
-        if (response.status === expectedStatus) {
-          context.onLog(`HTTP check passed: ${url} returned ${response.status}`);
-          return { success: true, duration: Date.now() - start };
-        }
+      const statusCode = parseInt(curlResult.stdout.trim(), 10);
 
+      if (curlResult.code === 0 && statusCode === expectedStatus) {
+        context.onLog(`HTTP check passed: ${url} returned ${statusCode}`);
+        return { success: true, duration: Date.now() - start };
+      }
+
+      if (curlResult.code === 0) {
         context.onLog(
-          `Attempt ${attempt}/${maxRetries}: got ${response.status}, expected ${expectedStatus}`,
+          `Attempt ${attempt}/${maxRetries}: got ${statusCode}, expected ${expectedStatus}`,
         );
-      } catch (err) {
+      } else {
         context.onLog(
-          `Attempt ${attempt}/${maxRetries}: connection failed (${err instanceof Error ? err.message : "unknown error"})`,
+          `Attempt ${attempt}/${maxRetries}: connection failed (curl exit ${curlResult.code})`,
         );
       }
 

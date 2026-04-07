@@ -62,6 +62,7 @@ describe("generatePlan", () => {
     const stepTypes = plan.steps.map((s) => s.type);
     expect(stepTypes).toContain("rsync");
     expect(stepTypes).toContain("compose_copy");
+    expect(stepTypes).toContain("compose_create");
     expect(stepTypes).toContain("compose_down");
     expect(stepTypes).toContain("compose_up");
   });
@@ -91,6 +92,16 @@ describe("generatePlan", () => {
     const downIndex = steps.findIndex((s) => s.type === "compose_down");
     const finalSyncIndex = steps.findIndex((s) => s.type === "rsync" && s.live === false);
     expect(downIndex).toBeLessThan(finalSyncIndex);
+  });
+
+  test("compose_copy happens before compose_create and rsync", () => {
+    const plan = generatePlan(source, target, analysis);
+    const steps = plan.steps;
+    const copyIndex = steps.findIndex((s) => s.type === "compose_copy");
+    const createIndex = steps.findIndex((s) => s.type === "compose_create");
+    const preSyncIndex = steps.findIndex((s) => s.type === "rsync" && s.live === true);
+    expect(copyIndex).toBeLessThan(createIndex);
+    expect(createIndex).toBeLessThan(preSyncIndex);
   });
 
   test("pre-sync happens before source stop", () => {

@@ -1,5 +1,6 @@
 import type { Migrator, Step } from "../types";
 import { composeCopyMigrator } from "./compose-copy";
+import { composeCreateMigrator } from "./compose-create";
 import { composeDownMigrator } from "./compose-down";
 import { composeUpMigrator } from "./compose-up";
 import { containerCheckMigrator } from "./container-check";
@@ -51,6 +52,7 @@ export function createDefaultRegistry(): MigratorRegistry {
   registry.register(composeDownMigrator);
   registry.register(composeUpMigrator);
   registry.register(composeCopyMigrator);
+  registry.register(composeCreateMigrator);
   registry.register(httpCheckMigrator);
   registry.register(containerCheckMigrator);
   return registry;

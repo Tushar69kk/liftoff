@@ -12,6 +12,7 @@ function makeContext(source: MockSshClient, target: MockSshClient): MigrationCon
     },
     target: { host: "root@new.de", compose_dir: "/opt/app" },
     services: [],
+    volumes: [],
     steps: [],
   };
   return { source, target, plan, onProgress: () => {}, onLog: () => {} };
