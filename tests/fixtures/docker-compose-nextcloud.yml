@@ -1,0 +1,35 @@
+version: "3.8"
+services:
+  nextcloud-app:
+    image: nextcloud:28
+    ports:
+      - "8080:80"
+    volumes:
+      - nextcloud_data:/var/www/html
+    depends_on:
+      - nextcloud-db
+      - nextcloud-redis
+    environment:
+      - POSTGRES_HOST=nextcloud-db
+      - POSTGRES_DB=nextcloud
+      - POSTGRES_USER=nextcloud
+      - POSTGRES_PASSWORD=secret
+
+  nextcloud-db:
+    image: postgres:16
+    volumes:
+      - nextcloud_db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=nextcloud
+      - POSTGRES_USER=nextcloud
+      - POSTGRES_PASSWORD=secret
+
+  nextcloud-redis:
+    image: redis:7-alpine
+    volumes:
+      - nextcloud_redis:/data
+
+volumes:
+  nextcloud_data:
+  nextcloud_db:
+  nextcloud_redis:
