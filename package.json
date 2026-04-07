@@ -1,0 +1,26 @@
+{
+  "name": "liftoff",
+  "version": "0.1.0",
+  "description": "Migrate Docker Compose stacks between servers",
+  "type": "module",
+  "bin": {
+    "liftoff": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "test": "bun test",
+    "build": "bun build --compile src/index.ts --outfile liftoff"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11",
+    "ink": "^5.2",
+    "react": "^18.3",
+    "ssh2": "^1.16",
+    "yaml": "^2.7"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^18.3",
+    "@types/ssh2": "^1.15"
+  }
+}
