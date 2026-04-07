@@ -7,6 +7,10 @@ OUTDIR="dist"
 rm -rf "$OUTDIR"
 mkdir -p "$OUTDIR"
 
+# Stub out react-devtools-core — ink imports it but it's dev-only and not published
+mkdir -p node_modules/react-devtools-core
+echo "module.exports = { connectToDevTools: () => {} };" > node_modules/react-devtools-core/index.js
+
 TARGETS=(
   "bun-linux-x64"
   "bun-linux-arm64"
