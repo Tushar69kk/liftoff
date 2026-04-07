@@ -1,28 +1,41 @@
 #!/usr/bin/env bun
 
 const command = process.argv[2];
+const args = process.argv.slice(3);
 
 switch (command) {
-  case "plan":
-    console.log("liftoff plan — not yet implemented");
+  case "plan": {
+    const { runPlanWizard } = await import("./cli/plan");
+    await runPlanWizard();
     break;
-  case "run":
-    console.log("liftoff run — not yet implemented");
+  }
+  case "run": {
+    const planPath = args[0] ?? "liftoff-plan.yml";
+    const { runMigration } = await import("./cli/run");
+    await runMigration(planPath);
     break;
-  case "verify":
-    console.log("liftoff verify — not yet implemented");
+  }
+  case "verify": {
+    const planPath = args[0] ?? "liftoff-plan.yml";
+    const { runVerify } = await import("./cli/verify");
+    await runVerify(planPath);
+    break;
+  }
+  case "--version":
+  case "-v":
+    console.log("liftoff 0.1.0");
     break;
   default:
     console.log(`
   Liftoff — Migrate Docker Compose stacks between servers
 
   Usage:
-    liftoff plan     Create a migration plan
-    liftoff run      Execute a migration plan
-    liftoff verify   Run health checks
+    liftoff plan                  Create a migration plan interactively
+    liftoff run [plan.yml]        Execute a migration plan (default: liftoff-plan.yml)
+    liftoff verify [plan.yml]     Run health checks from a plan
 
   Options:
-    --help           Show this help
-    --version        Show version
+    --version, -v                 Show version
+    --help                        Show this help
     `);
 }
