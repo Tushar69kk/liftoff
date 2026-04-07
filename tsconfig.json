@@ -8,7 +8,7 @@
     "skipLibCheck": true,
     "outDir": "./dist",
     "rootDir": ".",
-    "types": ["bun-test"],
+    "types": ["bun"],
     "paths": {
       "@/*": ["./src/*"]
     }
