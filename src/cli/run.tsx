@@ -258,6 +258,63 @@ export async function runMigration(planPath: string): Promise<void> {
   const registry = createDefaultRegistry();
   const executor = new Executor(registry);
 
+  // Pre-flight: check source stack is running
+  if (plan.source.compose_file) {
+    const composeDir = plan.source.compose_file.replace(/\/[^/]+$/, "");
+    const psResult = await sourceConn.exec(
+      `cd ${composeDir} && docker compose ps --format '{{.Name}} {{.State}}' 2>/dev/null`,
+    );
+
+    const lines = psResult.stdout.trim().split("\n").filter(Boolean);
+    const running = lines.filter((l) => l.includes("running"));
+
+    if (lines.length === 0 || running.length === 0) {
+      const p = await import("@clack/prompts");
+      const start = await p.confirm({
+        message: "Source stack is not running. Start it before migrating?",
+      });
+
+      if (p.isCancel(start) || !start) {
+        console.log("Cannot migrate a stopped stack. Please start it and try again.");
+        await sourceConn.close();
+        await targetConn.close();
+        process.exit(1);
+      }
+
+      console.log("Starting source stack...");
+      const upResult = await sourceConn.exec(`cd ${composeDir} && docker compose up -d`);
+      if (upResult.code !== 0) {
+        console.error(`Failed to start source stack: ${upResult.stderr}`);
+        await sourceConn.close();
+        await targetConn.close();
+        process.exit(1);
+      }
+
+      // Wait for services to be healthy
+      console.log("Waiting for services to start...");
+      const maxWait = 60;
+      for (let i = 0; i < maxWait; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const check = await sourceConn.exec(
+          `cd ${composeDir} && docker compose ps --format '{{.State}}' 2>/dev/null`,
+        );
+        const states = check.stdout.trim().split("\n").filter(Boolean);
+        if (states.length > 0 && states.every((s) => s.includes("running"))) {
+          console.log("Source stack is running.");
+          break;
+        }
+        if (i === maxWait - 1) {
+          console.error("Timed out waiting for source stack to start.");
+          await sourceConn.close();
+          await targetConn.close();
+          process.exit(1);
+        }
+      }
+    } else {
+      console.log(`Source stack running (${running.length}/${lines.length} services).`);
+    }
+  }
+
   // Pre-flight validation
   console.log("Validating plan...");
   const validation = await executor.validate(plan, {
