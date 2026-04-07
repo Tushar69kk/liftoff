@@ -2,13 +2,27 @@ import type { DatabaseInfo, Service } from "../types";
 
 interface ImagePattern {
 	pattern: RegExp;
-	type: "postgres";
+	type: "postgres" | "mysql" | "redis" | "mongo";
 }
 
 const DB_PATTERNS: ImagePattern[] = [
+	// PostgreSQL
 	{ pattern: /^(postgres|postgresql)(?::(.+))?$/, type: "postgres" },
 	{ pattern: /^bitnami\/postgresql(?::(.+))?$/, type: "postgres" },
 	{ pattern: /^postgis\/postgis(?::(.+))?$/, type: "postgres" },
+	// MySQL / MariaDB
+	{ pattern: /^(mysql)(?::(.+))?$/, type: "mysql" },
+	{ pattern: /^(mariadb)(?::(.+))?$/, type: "mysql" },
+	{ pattern: /^bitnami\/mysql(?::(.+))?$/, type: "mysql" },
+	{ pattern: /^bitnami\/mariadb(?::(.+))?$/, type: "mysql" },
+	// Redis
+	{ pattern: /^(redis)(?::(.+))?$/, type: "redis" },
+	{ pattern: /^bitnami\/redis(?::(.+))?$/, type: "redis" },
+	{ pattern: /^(valkey)(?::(.+))?$/, type: "redis" },
+	{ pattern: /^valkey\/valkey(?::(.+))?$/, type: "redis" },
+	// MongoDB
+	{ pattern: /^(mongo)(?::(.+))?$/, type: "mongo" },
+	{ pattern: /^bitnami\/mongodb(?::(.+))?$/, type: "mongo" },
 ];
 
 export function detectDatabases(services: Service[]): DatabaseInfo[] {

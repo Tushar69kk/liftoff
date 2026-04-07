@@ -123,4 +123,87 @@ describe("generatePlan", () => {
 			plan.steps.find((s) => s.type === "postgres_restore"),
 		).toBeUndefined();
 	});
+
+	test("generates correct steps for MySQL and Redis databases", () => {
+		const mixedAnalysis: AnalysisResult = {
+			composePath: "/opt/app/docker-compose.yml",
+			services: [
+				{ name: "app", image: "node:20", volumes: [] },
+				{
+					name: "mysql-db",
+					image: "mysql:8",
+					type: "mysql",
+					version: "8",
+					volumes: ["mysql_data:/var/lib/mysql"],
+				},
+				{
+					name: "cache",
+					image: "redis:7-alpine",
+					type: "redis",
+					version: "7",
+					volumes: ["redis_data:/data"],
+				},
+			],
+			volumes: [
+				{
+					name: "mysql_data",
+					driver: "local",
+					mountpoint: "/var/lib/docker/volumes/mysql_data/_data",
+					sizeBytes: 2000000000,
+				},
+				{
+					name: "redis_data",
+					driver: "local",
+					mountpoint: "/var/lib/docker/volumes/redis_data/_data",
+					sizeBytes: 100000000,
+				},
+			],
+			databases: [
+				{
+					serviceName: "mysql-db",
+					type: "mysql",
+					version: "8",
+					containerName: "mysql-db",
+				},
+				{
+					serviceName: "cache",
+					type: "redis",
+					version: "7",
+					containerName: "cache",
+				},
+			],
+		};
+
+		const plan = generatePlan(source, target, mixedAnalysis);
+		const stepTypes = plan.steps.map((s) => s.type);
+
+		// Should have MySQL dump/restore
+		expect(stepTypes).toContain("mysql_dump");
+		expect(stepTypes).toContain("mysql_restore");
+
+		// Should have Redis dump/restore
+		expect(stepTypes).toContain("redis_dump");
+		expect(stepTypes).toContain("redis_restore");
+
+		// Should NOT have postgres steps
+		expect(stepTypes).not.toContain("postgres_dump");
+		expect(stepTypes).not.toContain("postgres_restore");
+
+		// MySQL dump should target the correct service
+		const mysqlDump = plan.steps.find((s) => s.type === "mysql_dump");
+		expect(mysqlDump?.service).toBe("mysql-db");
+
+		// Redis dump should target the correct service
+		const redisDump = plan.steps.find((s) => s.type === "redis_dump");
+		expect(redisDump?.service).toBe("cache");
+
+		// Database start should come before restore
+		const mysqlUpIndex = plan.steps.findIndex(
+			(s) => s.type === "compose_up" && s.service === "mysql-db",
+		);
+		const mysqlRestoreIndex = plan.steps.findIndex(
+			(s) => s.type === "mysql_restore",
+		);
+		expect(mysqlUpIndex).toBeLessThan(mysqlRestoreIndex);
+	});
 });
