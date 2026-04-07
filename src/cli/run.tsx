@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { Executor } from "../executor/index";
 import { createDefaultRegistry } from "../migrators/registry";
 import { parsePlanYaml } from "../planner/yaml";
-import { SshConnection } from "../ssh/connection";
-import type { MigrationPlan, ProgressEvent, StepResult } from "../types";
+import { connectServer } from "../ssh/connect";
+import type { MigrationPlan, ProgressEvent, SshClient, StepResult } from "../types";
 import { detectTerminal } from "./terminal";
 
 // === Ink Dashboard Component ===
@@ -13,8 +13,8 @@ import { detectTerminal } from "./terminal";
 interface DashboardProps {
   plan: MigrationPlan;
   executor: Executor;
-  sourceConn: SshConnection;
-  targetConn: SshConnection;
+  sourceConn: SshClient;
+  targetConn: SshClient;
 }
 
 interface StepStatus {
@@ -186,8 +186,8 @@ function progressBar(percent: number): string {
 async function runFallback(
   plan: MigrationPlan,
   executor: Executor,
-  sourceConn: SshConnection,
-  targetConn: SshConnection,
+  sourceConn: SshClient,
+  targetConn: SshClient,
 ): Promise<void> {
   console.log(`\nLiftoff Migration: ${plan.source.host} → ${plan.target.host}\n`);
 
@@ -244,12 +244,12 @@ export async function runMigration(planPath: string): Promise<void> {
 
   console.log("Connecting to servers...");
 
-  const sourceConn = new SshConnection(plan.source.host);
-  const targetConn = new SshConnection(plan.target.host);
+  let sourceConn: SshClient;
+  let targetConn: SshClient;
 
   try {
-    await sourceConn.connect();
-    await targetConn.connect();
+    sourceConn = await connectServer(plan.source.host);
+    targetConn = await connectServer(plan.target.host);
   } catch (err) {
     console.error(`Connection failed: ${err instanceof Error ? err.message : err}`);
     process.exit(1);
