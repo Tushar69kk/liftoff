@@ -44,7 +44,7 @@ export const mysqlDumpMigrator: Migrator = {
     // Run mysqldump inside the container — captures all databases
     // Wrap in sh -c with quoted $MYSQL_ROOT_PASSWORD to avoid shell expansion issues
     const dumpResult = await context.source.exec(
-      `docker compose -f ${composePath} exec -T ${service} sh -c 'mysqldump --all-databases -u root -p"$MYSQL_ROOT_PASSWORD"' > ${DUMP_PATH}`,
+      `docker compose -f ${composePath} exec -T ${service} sh -c 'mysqldump --all-databases -u root -p "$MYSQL_ROOT_PASSWORD"' > ${DUMP_PATH}`,
     );
 
     if (dumpResult.code !== 0) {
